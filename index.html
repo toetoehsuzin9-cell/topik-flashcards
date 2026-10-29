@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TOPIK Study · Korean–Myanmar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+Myanmar:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f6;--surface:#fff;--ink:#1b2540;--mute:#5d6783;--line:#d5dbe7;--accent:#2a7f78;--accent-ink:#fff;--good:#2a7f78;--bad:#b3402f;--warn:#b9791f}
+@media (prefers-color-scheme:dark){:root{--bg:#121826;--surface:#1b2438;--ink:#e8ecf6;--mute:#9aa5c0;--line:#2d3955;--accent:#4db6ac;--accent-ink:#0d1a19;--good:#4db6ac;--bad:#e5806f;--warn:#e0a850}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans KR","Noto Sans Myanmar","Myanmar Text","Malgun Gothic",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.wrap{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.25rem;margin:4px 0 12px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:inherit;font-weight:500;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+select,.chk{padding:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;font:inherit;width:100%}
+.chk{display:flex;gap:8px;align-items:center}
+.info{color:var(--mute);font-size:.9rem;margin:6px 0 14px}
+.btn{padding:11px 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.good{border-color:var(--good);color:var(--good)}.btn.bad{border-color:var(--bad);color:var(--bad)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.card{perspective:1000px;cursor:pointer;min-height:260px}
+.card-in{position:relative;min-height:260px;transition:transform .45s;transform-style:preserve-3d}
+.card.flip .card-in{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:8px}
+.back{transform:rotateY(180deg)}
+.big{font-size:2rem;font-weight:700;line-height:1.3;word-break:keep-all}
+.mid{font-size:1.5rem;line-height:1.8}
+.sub{color:var(--mute);font-size:.95rem}
+.tag{color:var(--mute);font-size:.8rem}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--accent)}
+.opts{display:grid;gap:8px;margin-top:12px}
+.opt{text-align:left;padding:12px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font:inherit;cursor:pointer}
+.opt.ok{border-color:var(--good);background:color-mix(in srgb,var(--good) 18%,var(--surface))}
+.opt.no{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 18%,var(--surface))}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.stats{display:flex;gap:12px;flex-wrap:wrap;font-size:.9rem;color:var(--mute)}
+.list{margin:8px 0 0;padding-left:18px}
+@media (prefers-reduced-motion:reduce){.card-in{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>TOPIK 어휘 · Myanmar</h1>
+<div class="tabs" role="tablist">
+<button role="tab" data-m="flash" aria-selected="true">Flashcards</button>
+<button role="tab" data-m="quiz" aria-selected="false">Quiz</button>
+<button role="tab" data-m="mem" aria-selected="false">Memorize</button>
+</div>
+<div class="filters">
+<select id="level" aria-label="Level"></select>
+<select id="topic" aria-label="Topic"></select>
+<select id="dir" aria-label="Direction"><option value="km">Korean → Myanmar</option><option value="mk">Myanmar → Korean</option></select>
+<label class="chk"><input type="checkbox" id="only"> Hide words I know</label>
+</div>
+<div class="info" id="info"></div>
+<main id="main"></main>
+</div>
+<script src="data.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const W=WORDS.map(r=>({id:r[0],lv:r[1],pg:r[2],tp:r[3],ko:r[4],en:r[5],my:r[6]}));
+let prog={};
+try{prog=JSON.parse(localStorage.getItem("topik-prog")||"{}")}catch(e){}
+const save=()=>{try{localStorage.setItem("topik-prog",JSON.stringify(prog))}catch(e){}};
+const box=w=>(prog[w.id]||{b:0}).b; // 0 new, 1-3 learning, 4 known
+const known=w=>box(w)>=4;
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let mode="flash",pool=[],idx=0,flipped=false,quiz=null,mem=null;
+
+function fillSelects(){
+  const lv=[...new Set(W.map(w=>w.lv))];
+  $("#level").innerHTML='<option value="">All levels</option>'+lv.map(l=>`<option>${l}</option>`).join("");
+  fillTopics();
+}
+function fillTopics(){
+  const l=$("#level").value;
+  const tp=[...new Set(W.filter(w=>!l||w.lv===l).map(w=>w.tp))];
+  $("#topic").innerHTML='<option value="">All topics</option>'+tp.map(t=>`<option>${esc(t)}</option>`).join("");
+}
+function getPool(){
+  const l=$("#level").value,t=$("#topic").value,o=$("#only").checked;
+  return W.filter(w=>(!l||w.lv===l)&&(!t||w.tp===t)&&(!o||!known(w)));
+}
+function front(w){return $("#dir").value==="km"?w.ko:w.my}
+function back(w){return $("#dir").value==="km"?w.my:w.ko}
+function frontCls(){return $("#dir").value==="km"?"big":"mid"}
+function backCls(){return $("#dir").value==="km"?"mid":"big"}
+
+function refresh(){
+  pool=getPool();idx=0;flipped=false;quiz=null;mem=null;
+  const k=pool.filter(known).length;
+  $("#info").textContent=`${pool.length} words in this set · ${k} marked as known`;
+  render();
+}
+function render(){
+  if(!pool.length){$("#main").innerHTML='<div class="panel">No words match these filters. Change the level or topic, or untick “Hide words I know”.</div>';return}
+  ({flash:renderFlash,quiz:renderQuiz,mem:renderMem})[mode]();
+}
+
+/* Flashcards */
+function renderFlash(){
+  const w=pool[idx];
+  $("#main").innerHTML=`
+  <div class="bar"><i style="width:${(idx+1)/pool.length*100}%"></i></div>
+  <div class="stats"><span>${idx+1} / ${pool.length}</span><span>${esc(w.lv)} · ${esc(w.tp)}</span><span>Book page ${w.pg}</span></div>
+  <div class="card ${flipped?"flip":""}" id="card" tabindex="0" role="button" aria-label="Flip card">
+   <div class="card-in">
+    <div class="face"><div class="${frontCls()}">${esc(front(w))}</div><div class="tag">Tap to flip</div></div>
+    <div class="face back"><div class="${backCls()}">${esc(back(w))}</div><div class="sub">${esc(w.en)}</div></div>
+   </div></div>
+  <div class="row"><button class="btn" id="prev">Back</button><button class="btn bad" id="again">Still learning</button><button class="btn good" id="got">I know it</button><button class="btn" id="next">Next</button></div>
+  <div class="row"><button class="btn" id="shuf">Shuffle</button></div>`;
+  const flip=()=>{flipped=!flipped;$("#card").classList.toggle("flip",flipped)};
+  $("#card").onclick=flip;
+  $("#card").onkeydown=e=>{if(e.key===" "||e.key==="Enter"){e.preventDefault();flip()}};
+  const go=d=>{idx=(idx+d+pool.length)%pool.length;flipped=false;renderFlash()};
+  $("#prev").onclick=()=>go(-1);$("#next").onclick=()=>go(1);
+  $("#got").onclick=()=>{prog[w.id]={b:4};save();go(1)};
+  $("#again").onclick=()=>{prog[w.id]={b:1};save();go(1)};
+  $("#shuf").onclick=()=>{pool=shuffle(pool);idx=0;flipped=false;renderFlash()};
+}
+
+/* Quiz */
+function startQuiz(){
+  const n=Math.min(10,pool.length);
+  const qs=shuffle(pool).slice(0,n);
+  quiz={qs,i:0,score:0,wrong:[],done:false,answered:false};
+  renderQuiz();
+}
+function renderQuiz(){
+  if(!quiz){
+    $("#main").innerHTML=`<div class="panel"><p>Answer ${Math.min(10,pool.length)} multiple-choice questions from the current set.</p><button class="btn primary" id="start">Start quiz</button></div>`;
+    $("#start").onclick=startQuiz;return}
+  if(quiz.done){
+    $("#main").innerHTML=`<div class="panel"><div class="big">${quiz.score} / ${quiz.qs.length}</div>
+    ${quiz.wrong.length?`<p>Review these words:</p><ul class="list">${quiz.wrong.map(w=>`<li><b>${esc(w.ko)}</b> – ${esc(w.my)} <span class="sub">(${esc(w.en)})</span></li>`).join("")}</ul>`:"<p>Perfect score.</p>"}
+    <div class="row"><button class="btn primary" id="again">New quiz</button></div></div>`;
+    $("#again").onclick=startQuiz;return}
+  const w=quiz.qs[quiz.i];
+  const others=shuffle(W.filter(x=>x.id!==w.id&&back(x)!==back(w))).slice(0,3);
+  const opts=shuffle([w,...others]);
+  $("#main").innerHTML=`<div class="bar"><i style="width:${quiz.i/quiz.qs.length*100}%"></i></div>
+  <div class="stats"><span>Question ${quiz.i+1} / ${quiz.qs.length}</span><span>Score ${quiz.score}</span></div>
+  <div class="panel" style="text-align:center;margin-top:10px"><div class="${frontCls()}">${esc(front(w))}</div></div>
+  <div class="opts">${opts.map(o=>`<button class="opt" data-id="${o.id}">${esc(back(o))}</button>`).join("")}</div>
+  <div class="row" id="nx"></div>`;
+  document.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+    if(quiz.answered)return;quiz.answered=true;
+    const ok=+b.dataset.id===w.id;
+    if(ok)quiz.score++;else{quiz.wrong.push(w);b.classList.add("no")}
+    document.querySelectorAll(".opt").forEach(x=>{if(+x.dataset.id===w.id)x.classList.add("ok")});
+    $("#nx").innerHTML=`<button class="btn primary" id="n">${quiz.i+1<quiz.qs.length?"Next question":"See score"}</button>`;
+    $("#n").onclick=()=>{quiz.answered=false;quiz.i++;if(quiz.i>=quiz.qs.length)quiz.done=true;renderQuiz()};
+    $("#n").focus();
+  });
+}
+
+/* Memorize: Leitner boxes. Know = move up a box, Don't know = back to box 1. Box 4 = known. */
+function startMem(){
+  const due=pool.filter(w=>!known(w));
+  const order=shuffle(due).sort((a,b)=>box(a)-box(b)).slice(0,20);
+  mem={q:order,i:0,shown:false,got:0};renderMem();
+}
+function renderMem(){
+  if(!mem){
+    const c=[0,1,2,3,4].map(b=>pool.filter(w=>box(w)===b).length);
+    $("#main").innerHTML=`<div class="panel"><p>Study 20 words at a time. Say “I knew it” to move a word up a box; say “Not yet” to send it back to box 1. Words reach “known” after 4 correct answers in a row.</p>
+    <div class="stats"><span>New ${c[0]}</span><span>Box 1: ${c[1]}</span><span>Box 2: ${c[2]}</span><span>Box 3: ${c[3]}</span><span>Known ${c[4]}</span></div>
+    <div class="row"><button class="btn primary" id="start">Start session</button><button class="btn" id="reset">Reset progress</button></div></div>`;
+    $("#start").onclick=startMem;
+    $("#reset").onclick=()=>{if(confirm("Clear all saved progress on this device?")){prog={};save();refresh()}};return}
+  if(mem.i>=mem.q.length){
+    $("#main").innerHTML=`<div class="panel"><div class="big">${mem.got} / ${mem.q.length}</div><p>remembered in this session.</p><div class="row"><button class="btn primary" id="again">Study more</button></div></div>`;
+    $("#again").onclick=()=>{mem=null;refresh()};return}
+  const w=mem.q[mem.i];
+  $("#main").innerHTML=`<div class="bar"><i style="width:${mem.i/mem.q.length*100}%"></i></div>
+  <div class="stats"><span>${mem.i+1} / ${mem.q.length}</span><span>Box ${box(w)||"new"}</span></div>
+  <div class="panel" style="text-align:center;min-height:200px;margin-top:10px;display:flex;flex-direction:column;justify-content:center;gap:8px">
+   <div class="${frontCls()}">${esc(front(w))}</div>
+   ${mem.shown?`<div class="${backCls()}">${esc(back(w))}</div><div class="sub">${esc(w.en)}</div>`:""}</div>
+  <div class="row">${mem.shown
+   ?`<button class="btn bad" id="no">Not yet</button><button class="btn good" id="yes">I knew it</button>`
+   :`<button class="btn primary" id="show">Show answer</button>`}</div>`;
+  if(mem.shown){
+    const set=ok=>{prog[w.id]={b:ok?Math.min(4,box(w)+1):1};if(ok)mem.got++;save();mem.i++;mem.shown=false;renderMem()};
+    $("#yes").onclick=()=>set(true);$("#no").onclick=()=>set(false);
+  }else $("#show").onclick=()=>{mem.shown=true;renderMem()};
+}
+
+/* wiring */
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  mode=b.dataset.m;document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));refresh()});
+$("#level").onchange=()=>{fillTopics();refresh()};
+["#topic","#dir","#only"].forEach(s=>$(s).onchange=refresh);
+document.addEventListener("keydown",e=>{
+  if(mode!=="flash"||!pool.length||/SELECT|INPUT/.test(e.target.tagName))return;
+  if(e.key==="ArrowRight")$("#next")&&$("#next").click();
+  if(e.key==="ArrowLeft")$("#prev")&&$("#prev").click();
+});
+fillSelects();refresh();
+</script>
+</body>
+</html>
